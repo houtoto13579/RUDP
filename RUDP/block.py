@@ -17,5 +17,12 @@ class block:
 
         # data
         self.data = data
+
+    def build_meta(self):
+        self.metadata = (self.id).to_bytes(4, byteorder='little')
+        self.metadata += (self.start).to_bytes(4, byteorder='little')
+        self.metadata += (self.end).to_bytes(4, byteorder='little')
+        self.metadata += (self.timestamp).to_bytes(4, byteorder='little')
+
     def __repr__(self):
         return str(self.__dict__)
