@@ -64,7 +64,7 @@ def send_UDP(blocks):
         block.timestamp = int(datetime.now().strftime('%s'))
         block.build_meta()
         q[block.id] = block
-        if block.id != 10:
+        if block.id != 10 and block.id!=13:
             s.sendto(block.metadata + block.data, (args.host, udp_data_port))
         # send here
     s.sendto(b'', (args.host, udp_data_port))
