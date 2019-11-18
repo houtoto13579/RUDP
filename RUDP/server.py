@@ -14,8 +14,8 @@ block_size = 1024
 expireTime = 3
 
 udp_data_port = 18888
-udp_missing_send_port = 18890
-udp_missing_recv_port = 18889
+udp_missing_client_port = 18890
+udp_missing_server_port = 18889
 
 metadata_size = 16
 block_size = 1024
@@ -24,23 +24,24 @@ udp_receive_size = block_size + metadata_size
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--host', default='localhost')
+parser.add_argument('-f', '--file', default='novel.txt')
 args = parser.parse_args()
 
 def getBlocks(fileName, step=1024):
-    f = open(fileName, "r")
-    txt = f.read()
-    txt_as_byte = str.encode(txt)
+    f = open(fileName, 'rb')
+    txt_as_byte = f.read()
+    #txt_as_byte = str.encode(txt)
     start = 0
     id = 0
     blocks = []
-    length = len(txt)
+    length = len(txt_as_byte)
     for i in range(0, length, step):
         if i + step > length:
             blocks.append(block(id, 0, i, length, txt_as_byte[i:], 0))
         else:
             blocks.append(block(id, 0, i, i+step, txt_as_byte[i:i+step], 0))
         id += 1
-        
+    #print(blocks[-1])
     return blocks
 
 class Server:
@@ -79,21 +80,29 @@ class Server:
             block.timestamp = int(datetime.now().strftime('%s'))
             block.build_meta()
             self.q[block.id] = block
-            if block.id != 10 and block.id!=13:
-                s.sendto(block.metadata + block.data, (args.host, udp_data_port))
+            #if block.id != 10 and block.id!=13:
+            s.sendto(block.metadata + block.data, (args.host, udp_data_port))
             # send here
         s.sendto(b'', (args.host, udp_data_port))
         print('finish sending')
+        time.sleep(5)
         self.isFinished = True
 
     def missing_recv(self):
         s = socket(AF_INET, SOCK_DGRAM)
-        s.bind(('localhost', udp_missing_recv_port))
+        s.bind(('localhost', udp_missing_server_port))
         while True:
             payload, addr = s.recvfrom(udp_receive_size)
+            if payload == b'':
+                print('End missing recv')
+                s.close()
+                self.isEnd = True
+                break
+
             missing_block_id = int.from_bytes(payload[0:4], 'little')
             print("recv missing block id", missing_block_id)
             self.missing_buffer.put(missing_block_id)
+            
 
     def missing_send(self):
         s = socket(AF_INET, SOCK_DGRAM)
@@ -103,8 +112,10 @@ class Server:
                 missing_block_id = self.missing_buffer.get()
                 if missing_block_id in self.q:
                     missing_block = self.q[missing_block_id]
-                    s.sendto(missing_block.metadata + missing_block.data, (args.host, udp_missing_send_port))
-
+                    s.sendto(missing_block.metadata + missing_block.data, (args.host, udp_missing_client_port))
+            if self.isFinished:
+                s.sendto(b'', (args.host, udp_missing_client_port))
+                break
     def update(self):
         while True:
             if self.isFinished:
@@ -119,7 +130,10 @@ class Server:
 
 if __name__ == '__main__':
     print("Generating blocks")
-    blocks = getBlocks("data/novel.txt", block_size)
+    #print(args)
+    fileName = 'data/' + args.file
+
+    blocks = getBlocks(fileName, block_size)
     #send_UDP(blocks)
     print("# of Blocks", len(blocks))
     server = Server(blocks)
