@@ -12,8 +12,10 @@ udp_data_port = 18888
 udp_missing_client_port = 18890
 udp_missing_server_port = 18889
 
-metadata_size = 16
-block_size = 1024
+tcp_data_port_test = 16667
+
+metadata_size = 8
+block_size = 16384
 udp_receive_size = block_size + metadata_size
 
 check_missing_cnt = 100
@@ -21,6 +23,7 @@ check_missing_cnt = 100
 parser = argparse.ArgumentParser()
 parser.add_argument('--host', default='localhost')
 parser.add_argument('-o', '--output', default='output.txt')
+parser.add_argument('-t', '--type', default='udp')
 args = parser.parse_args()
 
 class client:
@@ -36,24 +39,28 @@ class client:
         self.isEnd = False
 
     def run(self):
-        print("start recv_thread")
-        self.recv_thread.start()
-        self.missing_recv_thread.start()
+        if args.type == 'udp': 
+            print("start recv_thread")
+            self.recv_thread.start()
+            self.missing_recv_thread.start()
+            
+            time.sleep(10)
+            print("start missing_send_thread")
+            self.missing_send_thread.start()
+
+            #self.check_thread.start()
+
+
+            self.recv_thread.join()
+            self.missing_recv_thread.join()
+            self.missing_send_thread.join()
+            return self.build_file()
+            #self.check_all_recv.join()
+        else:
+            return self.receive_tcp()
+
+
         
-        time.sleep(10)
-        print("start missing_send_thread")
-        self.missing_send_thread.start()
-
-        #self.check_thread.start()
-
-
-        self.recv_thread.join()
-        self.missing_recv_thread.join()
-        self.missing_send_thread.join()
-        
-        #self.check_all_recv.join()
-
-        return self.build_file()
     
     def receive_udp(self):
         print("start listening")
@@ -82,10 +89,23 @@ class client:
             
             start = int.from_bytes(payload[0:4], 'little')
             id = int.from_bytes(payload[4:8], 'little')
-            data = payload[16:]
+            data = payload[metadata_size:]
             data_dict[(start, id)] = data
             counter += 1
 
+    def receive_tcp(self):
+        print("tcp reciver")
+        data = bytearray()
+        s = socket(AF_INET, SOCK_STREAM)
+        s.connect((args.host, tcp_data_port_test))
+        while True:
+            chunk = s.recv(udp_receive_size)
+            data += chunk
+            if chunk == b'':
+                s.close()
+                logging.debug('close conn')
+                break
+        return data
 
     def check_missing(self, data_dict):
         sorted_data_dict = sorted(data_dict.items())
@@ -126,7 +146,7 @@ class client:
                 break
             start = int.from_bytes(payload[0:4], 'little')
             print("recv missing id", start)
-            data = payload[16:]
+            data = payload[metadata_size:]
             self.final_dict[start] = data 
 
     def check_all_recv(self):

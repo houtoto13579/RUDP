@@ -13,18 +13,21 @@ from socket import socket, AF_INET, SOCK_STREAM, SO_REUSEADDR, SOL_SOCKET, SOCK_
 block_size = 1024
 expireTime = 3
 
+tcp_data_port_test = 16667
+
 udp_data_port = 18888
 udp_missing_client_port = 18890
 udp_missing_server_port = 18889
 
-metadata_size = 16
-block_size = 1024
+metadata_size = 8
+block_size = 16384
 udp_receive_size = block_size + metadata_size
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--host', default='localhost')
 parser.add_argument('-f', '--file', default='novel.txt')
+parser.add_argument('-t', '--type', default='udp')
 args = parser.parse_args()
 
 def getBlocks(fileName, step=1024):
@@ -58,19 +61,22 @@ class Server:
         self.q = collections.OrderedDict()
 
     def run(self):
-        print("start missing_recv_thread")
-        self.missing_recv_thread.start()
-        time.sleep(10)
+        if args.type == 'udp': 
+            print("start missing_recv_thread")
+            self.missing_recv_thread.start()
+            time.sleep(10)
 
-        print("start sending_thread")
-        self.sending_thread.start()
-        self.update_thread.start()
-        self.missing_send_thread.start()
+            print("start sending_thread")
+            self.sending_thread.start()
+            self.update_thread.start()
+            self.missing_send_thread.start()
 
-        self.missing_recv_thread.join()
-        self.sending_thread.join()
-        self.update_thread.join()
-        self.missing_send_thread.join()
+            self.missing_recv_thread.join()
+            self.sending_thread.join()
+            self.update_thread.join()
+            self.missing_send_thread.join()
+        else:
+            self.send_TCP()
 
     def send_UDP(self, blocks):
         s = socket(AF_INET, SOCK_DGRAM)
@@ -87,6 +93,22 @@ class Server:
         print('finish sending')
         time.sleep(5)
         self.isFinished = True
+
+    def create_tcp_socket(self):
+        s = socket(AF_INET, SOCK_STREAM)
+        s.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+        s.bind((args.host, tcp_data_port_test))
+        s.listen(5)
+        return s
+    def send_TCP(self):
+        sock = self.create_tcp_socket()
+        conn, addr = sock.accept()
+        tstart = datetime.now()
+        for block in self.blocks:
+            conn.send(block.data)
+        tend = datetime.now()
+
+        sock.close()
 
     def missing_recv(self):
         s = socket(AF_INET, SOCK_DGRAM)
