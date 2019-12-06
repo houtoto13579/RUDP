@@ -112,7 +112,7 @@ class Server:
 
     def missing_recv(self):
         s = socket(AF_INET, SOCK_DGRAM)
-        s.bind(('localhost', udp_missing_server_port))
+        s.bind((args.host, udp_missing_server_port))
         while True:
             payload, addr = s.recvfrom(4)
             if payload == b'':

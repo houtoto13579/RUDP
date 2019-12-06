@@ -72,7 +72,7 @@ class client:
         data_dict = {}
         data = bytearray()
         s = socket(AF_INET, SOCK_DGRAM)
-        s.bind(('localhost', udp_data_port))
+        s.bind((args.host, udp_data_port))
         
         counter = 1
         while True:
@@ -143,7 +143,7 @@ class client:
     def missing_udp_recv(self):
         #print("start missing recv thread")
         s = socket(AF_INET, SOCK_DGRAM)
-        s.bind(('localhost', udp_missing_client_port))
+        s.bind((args.host, udp_missing_client_port))
         while True:
             payload, addr = s.recvfrom(udp_receive_size)
             if payload == b'':
