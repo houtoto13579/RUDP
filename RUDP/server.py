@@ -96,7 +96,7 @@ class Server:
     def create_tcp_socket(self):
         s = socket(AF_INET, SOCK_STREAM)
         s.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
-        s.bind((args.host, tcp_data_port_test))
+        s.bind(('', tcp_data_port_test))
         s.listen(5)
         return s
     def send_TCP(self):
@@ -112,7 +112,7 @@ class Server:
 
     def missing_recv(self):
         s = socket(AF_INET, SOCK_DGRAM)
-        s.bind((args.host, udp_missing_server_port))
+        s.bind(('', udp_missing_server_port))
         while True:
             payload, addr = s.recvfrom(4)
             if payload == b'':
