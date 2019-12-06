@@ -12,11 +12,16 @@ udp_data_port = 18888
 udp_missing_client_port = 18890
 udp_missing_server_port = 18889
 
+# percentage
+drop_rate = 0.00
+
 tcp_data_port_test = 16667
 
 metadata_size = 8
-block_size = 16384
+block_size = 65472
 udp_receive_size = block_size + metadata_size
+
+tcp_buffer_size = 2048
 
 check_missing_cnt = 100
 
@@ -29,7 +34,7 @@ args = parser.parse_args()
 class client:
     def __init__(self):
         self.final_dict = collections.OrderedDict()
-        self.id_ptr = 0
+        self.id_ptr = 1
         self.pre_end = 0
         self.missing_buffer = Queue()
         self.recv_thread = Thread(target=self.receive_udp)
@@ -71,9 +76,9 @@ class client:
         
         counter = 1
         while True:
-            if counter%check_missing_cnt == 0:
-                self.check_missing(data_dict)
-                data_dict = {}
+            #if counter%check_missing_cnt == 0:
+            #    self.check_missing(data_dict)
+            #    data_dict = {}
 
             payload, addr = s.recvfrom(udp_receive_size)
 
@@ -87,10 +92,10 @@ class client:
                 self.isEnd = True
                 break
             
-            start = int.from_bytes(payload[0:4], 'little')
-            id = int.from_bytes(payload[4:8], 'little')
-            data = payload[metadata_size:]
-            data_dict[(start, id)] = data
+            id = int.from_bytes(payload[0:4], 'little')
+
+            #start = int.from_bytes(payload[4:8], 'little')
+            data_dict[(id, 0)] = payload[metadata_size:]
             counter += 1
 
     def receive_tcp(self):
@@ -103,20 +108,21 @@ class client:
             data += chunk
             if chunk == b'':
                 s.close()
-                logging.debug('close conn')
                 break
+        print("size of data", len(data))
         return data
 
     def check_missing(self, data_dict):
         sorted_data_dict = sorted(data_dict.items())
         for (id,start), block in sorted_data_dict:
             #print(id, start)
+            #print(id)
             while self.id_ptr < id:
                 print('data miss at id: {}'.format(self.id_ptr))
                 self.missing_buffer.put(self.id_ptr)
-                self.final_dict[(self.id_ptr, self.pre_end)] = b'\x00' * (1024)
+                self.final_dict[self.id_ptr] = b'\x00' * (block_size)
                 self.id_ptr += 1
-                self.pre_end += 1024
+                #self.pre_end += block_size
 
             self.final_dict[self.id_ptr] = block
             self.id_ptr += 1
@@ -142,12 +148,13 @@ class client:
             payload, addr = s.recvfrom(udp_receive_size)
             if payload == b'':
                 print('end missing recv thread')
+                self.isEnd = True
                 s.close()
                 break
-            start = int.from_bytes(payload[0:4], 'little')
-            print("recv missing id", start)
+            id = int.from_bytes(payload[0:4], 'little')
+            print("recv missing id", id)
             data = payload[metadata_size:]
-            self.final_dict[start] = data 
+            self.final_dict[id] = data 
 
     def check_all_recv(self):
         while True:
@@ -162,8 +169,8 @@ class client:
         data = bytearray()
         if not isVideo:
             self.id_ptr = 0
-            for id, chunk in self.final_dict.items():
-                data += chunk
+            for id in range(len(self.final_dict)):
+                data += self.final_dict[id+1]
                 self.id_ptr += 1
         return data
 

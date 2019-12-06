@@ -10,7 +10,6 @@ from queue import Queue
 
 from socket import socket, AF_INET, SOCK_STREAM, SO_REUSEADDR, SOL_SOCKET, SOCK_DGRAM
 
-block_size = 1024
 expireTime = 3
 
 tcp_data_port_test = 16667
@@ -20,7 +19,7 @@ udp_missing_client_port = 18890
 udp_missing_server_port = 18889
 
 metadata_size = 8
-block_size = 16384
+block_size = 65472 #32768
 udp_receive_size = block_size + metadata_size
 
 
@@ -35,7 +34,7 @@ def getBlocks(fileName, step=1024):
     txt_as_byte = f.read()
     #txt_as_byte = str.encode(txt)
     start = 0
-    id = 0
+    id = 1
     blocks = []
     length = len(txt_as_byte)
     for i in range(0, length, step):
@@ -106,6 +105,7 @@ class Server:
         tstart = datetime.now()
         for block in self.blocks:
             conn.send(block.data)
+            #time.sleep(0.01)
         tend = datetime.now()
 
         sock.close()
@@ -114,9 +114,11 @@ class Server:
         s = socket(AF_INET, SOCK_DGRAM)
         s.bind(('localhost', udp_missing_server_port))
         while True:
-            payload, addr = s.recvfrom(udp_receive_size)
+            payload, addr = s.recvfrom(4)
             if payload == b'':
-                print('End missing recv')
+                print('server: end missing recv thread')
+                # resend stop
+                s.sendto(b'', (args.host, udp_data_port))
                 s.close()
                 self.isEnd = True
                 break
@@ -136,6 +138,7 @@ class Server:
                     missing_block = self.q[missing_block_id]
                     s.sendto(missing_block.metadata + missing_block.data, (args.host, udp_missing_client_port))
             if self.isFinished:
+                print("end missing send thread, send signal to client")
                 s.sendto(b'', (args.host, udp_missing_client_port))
                 break
     def update(self):
